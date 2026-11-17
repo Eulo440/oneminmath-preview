@@ -41,8 +41,6 @@
             <button type="button" class="tile" data-mode="subtract" aria-pressed="false"><span class="sym" aria-hidden="true">−</span><span>Subtraction</span></button>
             <button type="button" class="tile" data-mode="multiply" aria-pressed="false"><span class="sym" aria-hidden="true">×</span><span>Multiplication</span></button>
             <button type="button" class="tile" data-mode="divide" aria-pressed="false"><span class="sym" aria-hidden="true">÷</span><span>Division</span></button>
-            <button type="button" class="tile" data-mode="fractions" aria-pressed="false"><span class="sym" aria-hidden="true">½</span><span>Fractions</span></button>
-            <button type="button" class="tile" data-mode="decimals" aria-pressed="false"><span class="sym" aria-hidden="true">.5</span><span>Decimals</span></button>
             <button type="button" class="tile" data-mode="smarty" aria-pressed="false"><span class="sym" aria-hidden="true">±</span><span>Mixed</span></button>
           </div>
         </div>
@@ -53,6 +51,15 @@
             <button type="button" class="level" data-level="1" aria-pressed="true"><strong>Level 1</strong><small></small></button>
             <button type="button" class="level" data-level="2" aria-pressed="false"><strong>Level 2</strong><small></small></button>
             <button type="button" class="level" data-level="3" aria-pressed="false"><strong>Level 3</strong><small></small></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <h2 class="label" id="numLabel">3. Numbers</h2>
+          <div class="levels nums" role="group" aria-labelledby="numLabel" id="numSeg">
+            <button type="button" class="level" data-numbers="whole" aria-pressed="true"><strong>Whole numbers</strong><small>7 + 5, 8 × 6</small></button>
+            <button type="button" class="level" data-numbers="frac" aria-pressed="false"><strong>Fractions</strong><small>½ + ¼, ¾ × 8</small></button>
+            <button type="button" class="level" data-numbers="dec" aria-pressed="false"><strong>Decimals</strong><small>2.5 + 1.25</small></button>
           </div>
         </div>
 
@@ -68,6 +75,14 @@
             <div class="seg" role="group" aria-labelledby="clockLabel" id="clockSeg">
               <button type="button" data-clock="timed" aria-pressed="true">1 minute</button>
               <button type="button" data-clock="practice" aria-pressed="false">Practice (no clock)</button>
+              <button type="button" data-clock="missed" aria-pressed="false">Missed questions</button>
+            </div>
+          </div>
+          <div id="missedField" hidden>
+            <span class="label" id="scopeLabel">Which misses</span>
+            <div class="seg" role="group" aria-labelledby="scopeLabel" id="scopeSeg">
+              <button type="button" data-scope="here" aria-pressed="true">Just this choice</button>
+              <button type="button" data-scope="all" aria-pressed="false">All my misses</button>
             </div>
           </div>
         </div>
@@ -144,6 +159,7 @@
         <div class="actions">
           <button type="button" class="btn primary big" id="againBtn">Go again <span class="kbd" aria-hidden="true">Enter</span></button>
           <button type="button" class="btn ghost big" id="menuBtn">Change</button>
+          <button type="button" class="btn ghost big" id="redoBtn" hidden>Redo my misses</button>
           <button type="button" class="btn ghost big" id="printMissedBtn" hidden>Print these facts</button>
         </div>
       </div>

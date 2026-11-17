@@ -10,7 +10,7 @@
   const PRACTICE_COUNT = 20;
 
   const state = {
-    mode: "add", level: 1, clock: "timed", table: null,
+    mode: "add", level: 1, numbers: "whole", clock: "timed", missedScope: "here", table: null, roundCount: 20, pending: null,
     running: false, locked: false, typed: "", typedD: "", kind: "int", slot: "num",
     problem: null, source: null, correct: 0, attempts: 0, missed: [],
     startAt: 0, endAt: 0, raf: 0, announced: {}, lastRound: null, hofBoard: null
@@ -36,14 +36,25 @@
     });
     return out;
   }
-  const kindOf = (mode) => (mode === "fractions" ? "frac" : mode === "decimals" ? "dec" : "int");
+  const kindOf = (numbers) => (numbers === "frac" ? "frac" : numbers === "dec" ? "dec" : "int");
+  // bests, history, facts and Hall of Fame use this key; whole numbers keep the original ones (add, divide, …)
+  const bm = () => P.boardMode(state.mode, state.numbers);
+  const withNumbers = (numbers) => (numbers === "frac" ? " with fractions" : numbers === "dec" ? " with decimals" : "");
+  const labelFor = (op, numbers) => `${OPS[op].name}${withNumbers(numbers)}`;
+  const kindOfProblem = (p) => (p.kind === "frac" ? "frac" : p.kind === "dec" ? "dec" : "int");
+  // facts this device has missed lately, for the current choice or everywhere
+  function missedItems(scope = state.missedScope) {
+    if (scope === "all") return Store.allMissed(20);
+    return Store.missedFacts(bm(), state.level, 20).map((key) => ({ key, mode: bm(), level: state.level }));
+  }
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const keyText = (k) => { const p = P.parseKey(k); return p ? p.text : String(k).replace(/([+−×÷])/, " $1 "); };
   function show(view) {
     for (const v of ["home", "play", "results"]) $(v).hidden = v !== view;
     document.body.dataset.view = view;
     window.scrollTo(0, 0);
   }
-  const modeLabel = () => `${OPS[state.mode].name} · Level ${state.level}`;
+  const modeLabel = () => `${labelFor(state.mode, state.numbers)} · Level ${state.level}`;
   const scored = () => state.clock === "timed" && !state.table;
 
   function sparkline(values, best) {
@@ -70,15 +81,30 @@
     document.querySelectorAll("#opTiles .tile").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
     document.querySelectorAll("#lvlTiles .level").forEach((b) => {
       b.setAttribute("aria-pressed", String(+b.dataset.level === state.level));
-      b.querySelector("small").textContent = LEVELS[state.mode][b.dataset.level];
+      b.querySelector("small").textContent = P.levelText(state.mode, +b.dataset.level, state.numbers);
     });
+    document.querySelectorAll("#numSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.numbers === state.numbers)));
     document.querySelectorAll("#clockSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.clock === state.clock)));
-    const tableOk = state.mode === "multiply" || state.mode === "divide";
-    $("tableField").hidden = !tableOk;
+    const missed = state.clock === "missed";
+    $("missedField").hidden = !missed;
+    const nHere = missedItems("here").length, nAll = missedItems("all").length;
+    document.querySelectorAll("#scopeSeg button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.scope === state.missedScope));
+      b.textContent = `${b.dataset.scope === "all" ? "All my misses" : "Just this choice"} (${b.dataset.scope === "all" ? nAll : nHere})`;
+    });
+    const tableOk = state.numbers === "whole" && (state.mode === "multiply" || state.mode === "divide");
+    $("tableField").hidden = !tableOk || state.clock === "missed";
     if (!tableOk) { state.table = null; $("tableSelect").value = ""; }
-    const extra = state.mode === "fractions" ? " Answer in simplest form (1/2, not 2/4). Whole numbers go in the top box."
-      : state.mode === "decimals" ? " Use a dot for decimals, like 2.5." : state.mode === "smarty" ? " Mixed uses the four basic operations." : "";
-    $("setupHint").textContent = (scored()
+    const extra = state.numbers === "frac" ? " Answer in simplest form (1/2, not 2/4). Whole numbers go in the top box."
+      : state.numbers === "dec" ? " Use a dot for decimals, like 2.5." : "";
+    $("setupHint").className = "hint muted";
+    if (missed) {
+      const n = state.missedScope === "all" ? nAll : nHere;
+      $("setupHint").textContent = n
+        ? `${plural(n, "question")} you missed lately, no clock. Each one drops off once you get it right ${Store.MISSED_CLEAR} times in a row.`
+        : state.missedScope === "all" ? "No missed questions yet. Nice! Play a round and any misses will show up here."
+          : "No missed questions for this choice. Nice! Play a round, or try All my misses.";
+    } else $("setupHint").textContent = (scored()
       ? "60 seconds. Answers check themselves as you type."
       : state.clock === "practice" ? `${PRACTICE_COUNT} problems, no clock. Take your time.` : "Table practice isn't added to your bests.") + extra;
     renderProgress();
@@ -88,8 +114,8 @@
   function renderProgress() {
     $("progMode").textContent = `· ${modeLabel()}`;
     const box = $("progress"); box.replaceChildren();
-    const hist = Store.history(state.mode, state.level);
-    const best = Store.best(state.mode, state.level);
+    const hist = Store.history(bm(), state.level);
+    const best = Store.best(bm(), state.level);
     if (!hist.length && !best) {
       box.append(el("p", { class: "muted", text: "No rounds yet at this level. Your best and your trend will show up here." }));
       return;
@@ -103,7 +129,7 @@
       ),
       sparkline(last, best)
     );
-    const weak = Store.weakFacts(state.mode, state.level, 6);
+    const weak = Store.weakFacts(bm(), state.level, 6);
     if (weak.length) box.append(el("p", { class: "small" }, "Facts to keep practicing: ", ...weak.map((k) => el("span", { class: "chip" }, ...mathNodes(keyText(k))))));
   }
 
@@ -117,13 +143,13 @@
       box.replaceChildren(el("p", { class: "muted", text: "The Hall of Fame is offline right now. Your own progress still saves on this device." }));
       return;
     }
-    if (!Scores.hasBoard(state.mode)) {
-      box.replaceChildren(el("p", { class: "muted", text: `The ${OPS[state.mode].name} Hall of Fame is coming soon. Your own progress still saves on this device.` }));
+    if (!Scores.hasBoard(bm())) {
+      box.replaceChildren(el("p", { class: "muted", text: `The Hall of Fame for ${labelFor(state.mode, state.numbers).toLowerCase()} is coming soon. Your own progress still saves on this device.` }));
       return;
     }
     box.replaceChildren(el("p", { class: "muted", text: "Loading…" }));
     try {
-      const rows = await Scores.top(state.mode, state.level, 10);
+      const rows = await Scores.top(bm(), state.level, 10);
       if (my !== hofReq) return;
       state.hofBoard = rows;
       if (!rows.length) { box.replaceChildren(el("p", { class: "muted", text: "No scores yet at this level." })); if (Scores.readOnly) box.append(el("p", { class: "muted small", text: "Preview copy: rounds here aren't added to the Hall of Fame." })); return; }
@@ -142,16 +168,29 @@
 
   // ---------- play ----------
   function startRound() {
-    if (Scores.hasBoard(state.mode) && !Scores.readOnly && state.clock === "timed" && !state.table) loadHof(); // fresh top 10 for the initials check
-    state.source = createSource({ mode: state.mode, level: state.level, table: state.table, weakKeys: Store.weakFacts(state.mode, state.level) });
+    let missedSrc = null;
+    if (state.clock === "missed") {
+      const items = missedItems();
+      if (!items.length) { // nothing to redo: say so kindly instead of starting
+        if (document.body.dataset.view !== "home") { show("home"); syncSetup(); }
+        $("setupHint").className = "hint notice";
+        $("startBtn").focus();
+        return;
+      }
+      missedSrc = P.createMissedSource(items);
+    }
+    if (Scores.hasBoard(bm()) && !Scores.readOnly && state.clock === "timed" && !state.table) loadHof(); // fresh top 10 for the initials check
+    state.source = missedSrc || createSource({ mode: state.mode, level: state.level, numbers: state.numbers, table: state.table, weakKeys: Store.weakFacts(bm(), state.level) });
+    state.roundCount = missedSrc ? missedSrc.count : PRACTICE_COUNT;
+    state.pending = missedSrc ? missedSrc.next() : null; // a missed-questions round can mix whole numbers, fractions and decimals
     state.correct = 0; state.attempts = 0; state.missed = []; state.typed = ""; state.typedD = ""; state.announced = {};
     state.running = false; state.locked = true;
-    state.kind = kindOf(state.mode); state.slot = "num";
+    state.kind = state.pending ? kindOfProblem(state.pending) : kindOf(state.numbers); state.slot = "num";
     setupAnswerUI();
     show("play");
     answerEls().forEach((x) => { x.value = ""; x.classList.remove("good", "miss"); });
     input().focus({ preventScroll: true }); // inside the user's tap, so iOS/Android open the number keyboard
-    $("timeText").textContent = state.clock === "timed" ? "60" : `0/${PRACTICE_COUNT}`;
+    $("timeText").textContent = state.clock === "timed" ? "60" : `0/${state.roundCount}`;
     $("timerFill").style.transform = "scaleX(1)";
     $("timerFill").parentElement.style.visibility = state.clock === "timed" ? "visible" : "hidden";
     $("feedback").textContent = ""; $("tally").textContent = "";
@@ -187,7 +226,9 @@
   }
 
   function nextProblem() {
-    state.problem = state.source.next();
+    state.problem = state.pending || state.source.next();
+    state.pending = null;
+    if (kindOfProblem(state.problem) !== state.kind) switchKind(kindOfProblem(state.problem)); // fallback; normally done in judge()
     state.typed = ""; state.typedD = "";
     $("problem").replaceChildren(...mathNodes(`${state.problem.text} =`));
     $("problem").setAttribute("aria-label", spoken(state.problem));
@@ -228,6 +269,13 @@
     const i = input();
     if (document.activeElement !== i) i.focus({ preventScroll: true });
     const n = i.value.length; try { i.setSelectionRange(n, n); } catch (e) { /* ignore */ }
+  }
+  // change the answer box (whole / decimal / fraction) between two problems of a missed-questions round
+  function switchKind(kind) {
+    state.kind = kind; state.slot = "num"; state.typed = ""; state.typedD = "";
+    setupAnswerUI();
+    answerEls().forEach((x) => { x.value = ""; x.classList.remove("good", "miss"); });
+    if (document.body.dataset.view === "play") input().focus({ preventScroll: true });
   }
   function blurAnswer() { for (const x of [$("answerInput"), numBox(), denBox()]) if (document.activeElement === x) x.blur(); }
 
@@ -302,7 +350,7 @@
     } else if (state.kind === "dec") ok = P.normDecimal(state.typed) === p.answer;
     else ok = Number(state.typed) === p.answer;
     state.attempts++;
-    Store.recordFact(state.mode, state.level, p.key, ok);
+    Store.recordFact(p.origin ? p.origin.mode : bm(), p.origin ? p.origin.level : state.level, p.key, ok);
     state.locked = true; // ignore keys during feedback (old site counted them as extra wrong answers)
     const fb = $("feedback");
     if (ok) {
@@ -318,13 +366,18 @@
     }
     // fractions: go back to the top box now, inside the key event, so phones keep the keyboard up
     if (state.kind === "frac" && state.slot !== "num") moveTo("num");
+    // missed-questions rounds: if the next one needs a different box, switch now, inside the key event
+    if (state.clock === "missed" && state.attempts < state.roundCount) {
+      state.pending = state.source.next();
+      if (state.pending && kindOfProblem(state.pending) !== state.kind) switchKind(kindOfProblem(state.pending));
+    }
     $("tally").textContent = state.clock === "timed" ? `${state.correct} correct` : "";
-    if (state.clock === "practice") $("timeText").textContent = `${state.attempts}/${PRACTICE_COUNT}`;
+    if (state.clock !== "timed") $("timeText").textContent = `${state.attempts}/${state.roundCount}`;
     setTimeout(() => {
       answerEls().forEach((x) => x.classList.remove("good", "miss"));
       if (ok) { fb.textContent = ""; fb.className = "feedback"; }
       if (!state.running) return;
-      if (state.clock === "practice" && state.attempts >= PRACTICE_COUNT) return endRound();
+      if (state.clock !== "timed" && state.attempts >= state.roundCount) return endRound();
       state.locked = false;
       nextProblem();
     }, ok ? 120 : 900);
@@ -336,7 +389,7 @@
     document.body.classList.remove("low-time");
     Store.saveFacts();
     const durationMs = Math.round(performance.now() - state.startAt);
-    const r = { mode: state.mode, level: state.level, score: state.correct, attempts: state.attempts, missed: state.missed.slice(), durationMs, scored: scored() };
+    const r = { mode: bm(), op: state.mode, numbers: state.numbers, missedRound: state.clock === "missed" ? state.missedScope : null, level: state.level, score: state.correct, attempts: state.attempts, missed: state.missed.slice(), durationMs, scored: scored() };
     r.prevBest = r.scored && r.attempts > 0 ? Store.recordRound(r.mode, r.level, r) : Store.best(r.mode, r.level);
     state.lastRound = r;
     showResults(r); // focuses the initials box (keeping the phone keyboard up) when the score places
@@ -356,8 +409,8 @@
   // ---------- results ----------
   function showResults(r) {
     show("results");
-    const tag = r.scored ? "1 minute" : state.table ? `${state.table}s table practice` : "practice";
-    $("resMode").textContent = `${OPS[r.mode].name} · Level ${r.level} · ${tag}`;
+    const tag = r.scored ? "1 minute" : r.missedRound ? "missed questions" : state.table ? `${state.table}s table practice` : "practice";
+    $("resMode").textContent = r.missedRound === "all" ? "All my missed questions" : `${labelFor(r.op, r.numbers)} · Level ${r.level} · ${tag}`;
     $("resScore").textContent = String(r.score);
     const acc = r.attempts ? Math.round((100 * r.score) / r.attempts) : 0;
     $("resDetail").textContent = r.attempts ? `${r.attempts} answered · ${acc}% accurate` : "No answers this time.";
@@ -368,7 +421,11 @@
       else if (r.score === r.prevBest) line = `Matched your best (${r.prevBest}).`;
       else line = `Your best is ${r.prevBest}. Every round counts as practice.`;
     }
+    const left = missedItems(r.missedRound || "here").length;
+    if (r.missedRound) line = left ? `${plural(left, "missed question")} still to clear. Get each one right ${Store.MISSED_CLEAR} times in a row.` : "All cleared! Nothing left to redo here.";
     $("resBest").textContent = line;
+    $("redoBtn").hidden = !left || !!r.missedRound; // (in a missed round, "Go again" already redoes them)
+    $("redoBtn").textContent = `Redo my misses (${left})`;
     const spark = $("resSpark"); spark.replaceChildren();
     if (r.scored) { const h = Store.history(r.mode, r.level).slice(-10).map((x) => x.score); spark.append(sparkline(h, Store.best(r.mode, r.level))); }
     const m = $("resMissed"); m.replaceChildren();
@@ -402,7 +459,7 @@
     const decide = (board) => {
       if (state.lastRound !== r || !Scores.qualifies(board, r.score)) return false;
       state.offerFor = r;
-      $("initRank").textContent = `You're #${rankFor(board, r.score)} for ${OPS[r.mode].name}, Level ${r.level}. Enter your initials`;
+      $("initRank").textContent = `You're #${rankFor(board, r.score)} for ${labelFor(r.op, r.numbers)}, Level ${r.level}. Enter your initials`;
       const i = initialsInput();
       i.value = Store.initials();
       i.disabled = false; $("hofAdd").disabled = false; $("hofSkip").disabled = false;
@@ -470,14 +527,15 @@
     let problems = [];
     if (fromMissed && state.lastRound && state.lastRound.missed.length) {
       const base = state.lastRound.missed.map((k) => P.parseKey(k)).filter(Boolean);
-      const src = createSource({ mode: state.lastRound.mode, level: state.lastRound.level, weakKeys: state.lastRound.missed });
+      const lr = state.lastRound;
+      const src = createSource({ mode: lr.op, level: lr.level, numbers: lr.numbers, weakKeys: lr.missed });
       while (problems.length < 40) problems.push(problems.length % 2 === 0 && base.length ? base[(problems.length / 2) % base.length] : src.next());
-      buildSheet(problems, `Practice sheet: ${OPS[state.lastRound.mode].name}, Level ${state.lastRound.level}`);
+      buildSheet(problems, `Practice sheet: ${labelFor(lr.op, lr.numbers)}, Level ${lr.level}`);
     } else {
-      const src = createSource({ mode: state.mode, level: state.level, table: state.table });
-      const n = state.mode === "fractions" ? 40 : 60; // stacked fractions need more room on the page
+      const src = createSource({ mode: state.mode, level: state.level, numbers: state.numbers, table: state.table });
+      const n = state.numbers === "frac" ? 40 : 60; // stacked fractions need more room on the page
       for (let i = 0; i < n; i++) problems.push(src.next());
-      buildSheet(problems, `${OPS[state.mode].name}, Level ${state.level}${state.table ? ` (${state.table}s)` : ""}: ${LEVELS[state.mode][state.level]}`);
+      buildSheet(problems, `${labelFor(state.mode, state.numbers)}, Level ${state.level}${state.table ? ` (${state.table}s)` : ""}: ${P.levelText(state.mode, state.level, state.numbers)}`);
     }
     window.print();
   }
@@ -486,11 +544,14 @@
   function wire() {
     $("opTiles").addEventListener("click", (e) => { const b = e.target.closest(".tile"); if (b) { state.mode = b.dataset.mode; syncSetup(); } });
     $("lvlTiles").addEventListener("click", (e) => { const b = e.target.closest(".level"); if (b) { state.level = +b.dataset.level; syncSetup(); } });
+    $("numSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { state.numbers = b.dataset.numbers; syncSetup(); } });
     $("clockSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { state.clock = b.dataset.clock; syncSetup(); } });
     const sel = $("tableSelect");
     for (let t = 2; t <= 12; t++) sel.append(el("option", { value: String(t), text: `${t}s` }));
     sel.addEventListener("change", () => { state.table = sel.value ? +sel.value : null; syncSetup(); });
     $("startBtn").addEventListener("click", startRound);
+    $("redoBtn").addEventListener("click", () => { state.clock = "missed"; state.missedScope = "here"; state.table = null; startRound(); });
+    $("scopeSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { state.missedScope = b.dataset.scope; syncSetup(); } });
     $("againBtn").addEventListener("click", startRound);
     $("menuBtn").addEventListener("click", () => { show("home"); syncSetup(); });
     $("quitBtn").addEventListener("click", quitRound);

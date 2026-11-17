@@ -6,10 +6,11 @@
   const url = (cfg.SUPABASE_URL || "").replace(/\/$/, "");
   const key = cfg.SUPABASE_ANON_KEY || "";
   const configured = /^https:\/\/.+/.test(url) && !/YOUR-PROJECT-REF/.test(url) && key && !/YOUR-SUPABASE/.test(key);
-  // Fractions/Decimals boards need migration_fractions_decimals.sql in the database first; until
+  // Fractions/Decimals boards (any operation) need migration_fractions_decimals.sql in the database first; until
   // NEW_MODE_BOARDS is true those modes still play, they just have no Hall of Fame.
-  const NEW_MODES = ["fractions", "decimals"];
-  const hasBoard = (mode) => !!configured && (!NEW_MODES.includes(mode) || cfg.NEW_MODE_BOARDS === true);
+  // Board keys: whole numbers keep add/subtract/multiply/divide/smarty; the new ones are frac_add … dec_smarty.
+  const isNewMode = (mode) => /^(frac|dec)_/.test(mode);
+  const hasBoard = (mode) => !!configured && (!isNewMode(mode) || cfg.NEW_MODE_BOARDS === true);
   // READ_ONLY (used by the preview copy): show the boards, never submit.
   const readOnly = cfg.READ_ONLY === true;
 

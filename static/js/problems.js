@@ -11,8 +11,6 @@
     subtract: { sym: "−", name: "Subtraction" },
     multiply: { sym: "×", name: "Multiplication" },
     divide: { sym: "÷", name: "Division" },
-    fractions: { sym: "½", name: "Fractions" },
-    decimals: { sym: ".5", name: "Decimals" },
     smarty: { sym: "?", name: "Mixed" }
   };
 
@@ -21,11 +19,28 @@
     subtract: { 1: "Facts within 20", 2: "Within 100, answers to 50", 3: "Within 200" },
     multiply: { 1: "Tables 1–5", 2: "Tables 2–10", 3: "Tables to 12 × 12" },
     divide:   { 1: "Tables 1–5", 2: "Tables 2–10", 3: "Tables to 12 × 12" },
-    fractions: { 1: "Add & subtract, same bottom number", 2: "Add & subtract, different bottoms", 3: "Multiply & divide" },
-    decimals:  { 1: "Tenths: add & subtract", 2: "Hundredths: add & subtract", 3: "Multiply & divide" },
     smarty:   { 1: "All four, level 1", 2: "All four, level 2", 3: "All four, level 3" }
   };
 
+  // Number types (section 3 on the setup screen). Whole numbers are the original game, unchanged.
+  const NUMBERS = { whole: "Whole numbers", frac: "Fractions", dec: "Decimals" };
+  const LEVELS_FRAC = {
+    add:      { 1: "Same bottom number: 2/7 + 3/7", 2: "Different bottoms: 1/2 + 1/4", 3: "Bigger bottoms: 3/8 + 1/6" },
+    subtract: { 1: "Same bottom number: 5/8 − 2/8", 2: "Different bottoms: 3/4 − 1/2", 3: "Bigger bottoms, 1 − 3/8" },
+    multiply: { 1: "Whole × fraction: 3/4 × 8", 2: "Fraction × fraction: 1/2 × 3/4", 3: "Bigger, with cancelling: 2/3 × 9/10" },
+    divide:   { 1: "By a whole or unit fraction: 1/2 ÷ 3", 2: "Fraction ÷ fraction, unit: 1/6 ÷ 1/3", 3: "Any fractions: 3/4 ÷ 3/8" },
+    smarty:   { 1: "All four, level 1", 2: "All four, level 2", 3: "All four, level 3" }
+  };
+  const LEVELS_DEC = {
+    add:      { 1: "Tenths: 2.4 + 3.8", 2: "Hundredths: 3.45 + 1.27", 3: "Mixed places: 4 + 0.37, 3.5 + 1.25" },
+    subtract: { 1: "Tenths: 5.3 − 1.7", 2: "Hundredths: 6.42 − 2.15", 3: "Mixed places: 5 − 1.25" },
+    multiply: { 1: "Tenths × whole, × 10, × 100", 2: "Tenths × tenths, hundredths × whole", 3: "Decimal × decimal: 1.5 × 0.3" },
+    divide:   { 1: "÷ 10, ÷ 100, tenths ÷ whole", 2: "÷ 0.1, 0.2, 0.5; hundredths ÷ whole", 3: "Decimal ÷ decimal: 1.2 ÷ 0.3" },
+    smarty:   { 1: "All four, level 1", 2: "All four, level 2", 3: "All four, level 3" }
+  };
+  const levelText = (op, level, numbers = "whole") => (numbers === "frac" ? LEVELS_FRAC : numbers === "dec" ? LEVELS_DEC : LEVELS)[op][level];
+  // Key for bests, history, facts and Hall of Fame boards. Whole numbers keep the original keys (add, divide, …).
+  const boardMode = (op, numbers = "whole") => (numbers === "frac" ? `frac_${op}` : numbers === "dec" ? `dec_${op}` : op);
   const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
@@ -99,9 +114,9 @@
   const isDeck = (op, level, table) => BASIC.includes(op) && (op === "multiply" || op === "divide" || !!table || level === 1);
   const BASIC = ["add", "subtract", "multiply", "divide"];
 
-  function randomRangeProblem(op, level) {
-    if (op === "fractions") return fractionProblem(level);
-    if (op === "decimals") return decimalProblem(level);
+  function randomRangeProblem(op, level, numbers = "whole") {
+    if (numbers === "frac") return fractionProblem(op, level);
+    if (numbers === "dec") return decimalProblem(op, level);
     if (op === "add") {
       if (level === 2) { // sums to 100, mix of 2-digit + 1-digit and 2-digit + 2-digit
         const a = ri(10, 89);
@@ -119,7 +134,8 @@
 
   // A problem source for one round.
   // weakKeys: array of fact keys the player has missed before for this mode/level.
-  function createSource({ mode, level, table = null, weakKeys = [] }) {
+  function createSource({ mode, level, numbers = "whole", table = null, weakKeys = [] }) {
+    if (numbers !== "whole") table = null;
     const recent = [];
     const RECENT_MAX = 8;
     const decks = {};
@@ -131,7 +147,7 @@
       return opBag.pop();
     }
     // Mixed level 3 keeps add/subtract at level 2 so each item takes similar time.
-    const levelFor = (op) => (mode === "smarty" && level === 3 && (op === "add" || op === "subtract")) ? 2 : level;
+    const levelFor = (op) => (numbers === "whole" && mode === "smarty" && level === 3 && (op === "add" || op === "subtract")) ? 2 : level;
 
     function freshDeck(op, lvl) {
       const base = factSet(op, lvl, mode === "smarty" ? null : table) || [];
@@ -167,16 +183,17 @@
       const lvl = levelFor(op);
       let p = null;
       // revisit a missed fact now and then on random-range levels
-      if (weakKeys.length && Math.random() < 0.15 && !isDeck(op, lvl, null)) {
+      if (weakKeys.length && Math.random() < 0.15 && (numbers !== "whole" || !isDeck(op, lvl, null))) {
         const k = weakKeys[Math.floor(Math.random() * weakKeys.length)];
         p = parseKey(k);
-        if (p && (p.op !== op || isRecent(p))) p = null;
+        const same = p && (numbers === "whole" ? p.op === op : p.kind === numbers && p.sub === OPS[op].sym);
+        if (p && (!same || isRecent(p))) p = null;
       }
       if (!p) {
-        if (isDeck(op, lvl, mode === "smarty" ? null : table)) p = drawFromDeck(op, lvl);
+        if (numbers === "whole" && isDeck(op, lvl, mode === "smarty" ? null : table)) p = drawFromDeck(op, lvl);
         else {
           for (let tries = 0; tries < 40; tries++) {
-            p = randomRangeProblem(op, lvl);
+            p = randomRangeProblem(op, lvl, numbers);
             if (!isRecent(p)) break;
           }
         }
@@ -216,49 +233,62 @@
   }
   // a random proper fraction n/d in simplest form
   function properFrac(d) { let n; do { n = ri(1, d - 1); } while (!frSimplest(n, d)); return { n, d }; }
-  const L2_PAIRS = [[2, 3], [2, 4], [2, 5], [2, 6], [2, 8], [2, 10], [2, 12], [3, 4], [3, 6], [3, 12], [4, 6], [4, 8], [4, 12], [5, 10], [6, 12]];
-  function fractionProblem(level) {
-    for (let guard = 0; guard < 200; guard++) {
+  // denominator pairs (different bottoms) by common denominator: small (≤ 12) and bigger (≤ 24)
+  const PAIRS_SMALL = [[2, 3], [2, 4], [2, 5], [2, 6], [2, 8], [2, 10], [2, 12], [3, 4], [3, 6], [3, 12], [4, 6], [4, 8], [4, 12], [5, 10], [6, 12]];
+  const PAIRS_BIG = [[3, 8], [6, 8], [4, 5], [3, 5], [6, 9], [8, 12], [4, 10], [5, 6], [2, 9], [3, 10], [8, 6], [9, 12], [2, 7], [3, 7], [4, 9]];
+  const pickPair = (list) => { const pr = list[ri(0, list.length - 1)]; return Math.random() < 0.5 ? pr : [pr[1], pr[0]]; };
+  const W = (n) => ({ n, d: 1 });
+  // Every answer is a proper fraction in simplest form or a whole number (no mixed numbers to type).
+  const fracOk = (r) => r.n > 0 && (r.d === 1 || r.n < r.d);
+  function fractionProblem(op, level) {
+    for (let guard = 0; guard < 300; guard++) {
       let p = null;
-      if (level === 1) {
-        // same denominator; the answer never needs simplifying (or is exactly 1)
-        const d = ri(3, 12), sub = Math.random() < 0.5 ? "+" : "−";
-        const a = ri(1, d - 1), b = ri(1, d - 1);
-        const r = sub === "+" ? a + b : a - b;
-        if (r < 1 || r > d) continue;
-        if (r !== d && !frSimplest(r, d)) continue;
-        if (r === d && Math.random() < 0.7) continue; // "= 1" now and then, not often
-        p = { a: { n: a, d }, b: { n: b, d }, sub, raw: true };
-      } else if (level === 2) {
-        // different (small) denominators, common denominator at most 12
-        const pair = L2_PAIRS[ri(0, L2_PAIRS.length - 1)];
-        const [d1, d2] = Math.random() < 0.5 ? pair : [pair[1], pair[0]];
-        const x = properFrac(d1), y = properFrac(d2);
-        const sub = Math.random() < 0.5 ? "+" : "−";
-        const r = frCalc(x, sub, y);
-        if (r.n <= 0 || r.n > r.d) continue; // positive, at most 1
-        p = { a: x, b: y, sub };
-      } else {
-        const kind = ri(0, 4);
-        if (kind === 0) { // fraction × fraction
-          const x = properFrac(ri(2, 6)), y = properFrac(ri(2, 6));
-          p = { a: x, b: y, sub: "×" };
-        } else if (kind === 1) { // whole × fraction = whole ("3/4 of 12")
-          const x = properFrac(ri(2, 6)), k = ri(1, 5);
-          const w = { n: x.d * k, d: 1 };
-          p = Math.random() < 0.5 ? { a: w, b: x, sub: "×" } : { a: x, b: w, sub: "×" };
-        } else if (kind === 2) { // fraction ÷ whole
-          p = { a: properFrac(ri(2, 6)), b: { n: ri(2, 5), d: 1 }, sub: "÷" };
-        } else if (kind === 3) { // whole ÷ unit fraction
-          p = { a: { n: ri(1, 8), d: 1 }, b: { n: 1, d: ri(2, 5) }, sub: "÷" };
-        } else { // unit fraction ÷ larger unit fraction (answer below 1)
+      if (op === "add" || op === "subtract") {
+        const plus = op === "add";
+        if (level === 1) {
+          // same bottom number; the answer never needs simplifying (or is exactly 1)
+          const d = ri(3, 12), a = ri(1, d - 1), b = ri(1, d - 1);
+          const r = plus ? a + b : a - b;
+          if (r < 1 || r > d || (r !== d && !frSimplest(r, d))) continue;
+          if (r === d && Math.random() < 0.7) continue;
+          p = { a: { n: a, d }, b: { n: b, d } };
+        } else if (level === 2) {
+          const [d1, d2] = pickPair(PAIRS_SMALL);
+          p = { a: properFrac(d1), b: properFrac(d2) };
+        } else {
+          if (!plus && Math.random() < 0.25) p = { a: W(1), b: properFrac(ri(3, 12)) }; // 1 − 3/8
+          else { const [d1, d2] = pickPair(PAIRS_BIG); p = { a: properFrac(d1), b: properFrac(d2) }; }
+        }
+        p.sub = plus ? "+" : "−";
+        if (!plus && frCalc(p.a, "−", p.b).n <= 0) [p.a, p.b] = [p.b, p.a];
+      } else if (op === "multiply") {
+        p = { sub: "×" };
+        if (level === 1) { // whole × fraction = whole ("3/4 of 8")
+          const x = properFrac(ri(2, 6)), w = W(x.d * ri(1, 5));
+          [p.a, p.b] = Math.random() < 0.5 ? [w, x] : [x, w];
+        } else if (level === 2) {
+          p.a = properFrac(ri(2, 6)); p.b = properFrac(ri(2, 6));
+        } else { // bigger bottoms; the product must cancel (simplify) at least once
+          p.a = properFrac(ri(3, 10)); p.b = properFrac(ri(3, 10));
+          if (gcd(p.a.n * p.b.n, p.a.d * p.b.d) === 1) continue;
+        }
+      } else if (op === "divide") {
+        p = { sub: "÷" };
+        if (level === 1) {
+          if (Math.random() < 0.5) { p.a = properFrac(ri(2, 6)); p.b = W(ri(2, 5)); } // 1/2 ÷ 3
+          else { p.a = W(ri(1, 8)); p.b = { n: 1, d: ri(2, 5) }; } // 3 ÷ 1/4
+        } else if (level === 2) { // unit fraction ÷ unit fraction
           const d = ri(2, 6), m = ri(2, 4);
           if (d * m > 12) continue;
-          p = { a: { n: 1, d: d * m }, b: { n: 1, d }, sub: "÷" };
+          [p.a, p.b] = Math.random() < 0.6 ? [{ n: 1, d: d * m }, { n: 1, d }] : [{ n: 1, d }, { n: 1, d: d * m }]; // 1/6 ÷ 1/3 or 1/3 ÷ 1/6 = 2
+        } else { // any proper fractions, answer proper or whole
+          p.a = properFrac(ri(2, 10)); p.b = properFrac(ri(2, 10));
+          if (p.a.n === p.b.n && p.a.d === p.b.d) continue;
         }
-      }
+      } else return null;
       const out = mkFrac(p.a, p.sub, p.b);
-      if (out.ans.n <= 0) continue;
+      if (!fracOk(out.ans)) continue;
+      if (out.ans.d > ((op === "multiply" || op === "divide") ? 24 : 36)) continue; // keep answers mental-math friendly
       return out;
     }
     return mkFrac({ n: 1, d: 4 }, "+", { n: 2, d: 4 });
@@ -300,43 +330,52 @@
   }
   const D = (v, s) => decNorm({ v, s });
   const notWhole = (lo, hi) => { let v; do { v = ri(lo, hi); } while (v % 10 === 0); return v; };
-  function decimalProblem(level) {
-    for (let guard = 0; guard < 200; guard++) {
-      let p;
-      if (level === 1) { // tenths, sums to 19.8
-        const x = notWhole(1, 99), y = notWhole(1, 99);
-        if (Math.random() < 0.5) p = mkDec(D(x, 1), "+", D(y, 1));
-        else { if (x === y) continue; p = mkDec(D(Math.max(x, y), 1), "−", D(Math.min(x, y), 1)); }
-      } else if (level === 2) { // hundredths (sometimes with a tenths number), under 10
-        const x = notWhole(101, 999);
-        const yb = Math.random() < 0.4 ? D(notWhole(1, 99), 1) : D(notWhole(11, 999), 2);
-        const xb = D(x, 2);
-        if (Math.random() < 0.5) p = mkDec(xb, "+", yb);
-        else {
-          const diff = decCalc(xb, "−", yb);
-          if (diff.v === 0) continue;
-          p = diff.v > 0 ? mkDec(xb, "−", yb) : mkDec(yb, "−", xb);
+  const pickOne = (arr) => arr[ri(0, arr.length - 1)];
+  const tenths = (lo, hi) => D(notWhole(lo, hi), 1);   // e.g. 0.1–9.9, never a whole number
+  const hundredths = (lo, hi) => D(notWhole(lo, hi), 2); // e.g. 1.01–9.99, last digit never 0
+  function decimalProblem(op, level) {
+    for (let guard = 0; guard < 300; guard++) {
+      let a, b, sub;
+      if (op === "add" || op === "subtract") {
+        sub = op === "add" ? "+" : "−";
+        if (level === 1) { a = tenths(1, 99); b = tenths(1, 99); }
+        else if (level === 2) { a = hundredths(101, 999); b = hundredths(11, 999); }
+        else { // mixed places
+          const kinds = [() => [D(ri(2, 12), 0), hundredths(11, 99)], () => [tenths(11, 99), hundredths(11, 499)], () => [tenths(101, 199), hundredths(101, 999)]];
+          [a, b] = pickOne(kinds)();
+          if (Math.random() < 0.5) [a, b] = [b, a];
         }
-      } else {
-        const kind = ri(0, 4);
-        if (kind === 0) { // tenths × one-digit whole
-          const a = D(notWhole(1, 49), 1), n = D(ri(2, 9), 0);
-          p = Math.random() < 0.5 ? mkDec(a, "×", n) : mkDec(n, "×", a);
-        } else if (kind === 1) { // tenths × tenths
-          p = mkDec(D(ri(1, 9), 1), "×", D(ri(1, 9), 1));
-        } else if (kind === 2) { // × or ÷ by 10 or 100
-          const ten = Math.random() < 0.5, t = D(ten ? 10 : 100, 0);
-          if (Math.random() < 0.5) p = mkDec(Math.random() < 0.6 ? D(notWhole(1, 99), 1) : D(notWhole(101, 999), 2), "×", t);
-          else if (ten) p = mkDec(Math.random() < 0.5 ? D(notWhole(1, 99), 1) : D(notWhole(11, 99), 0), "÷", t); // 4.5 ÷ 10, 36 ÷ 10
-          else p = mkDec(D(notWhole(2, 99), 0), "÷", t); // 45 ÷ 100
-        } else if (kind === 3) { // decimal ÷ one-digit whole, exact answer in tenths
-          const q = D(notWhole(1, 29), 1), n = D(ri(2, 9), 0);
-          p = mkDec(decCalc(q, "×", n), "÷", n);
-        } else { // whole ÷ 0.1, 0.2 or 0.5
-          const d = [D(1, 1), D(2, 1), D(5, 1)][ri(0, 2)];
-          p = mkDec(D(ri(1, 9), 0), "÷", d);
+        if (sub === "−") { const d = decCalc(a, "−", b); if (d.v === 0) continue; if (d.v < 0) [a, b] = [b, a]; }
+      } else if (op === "multiply") {
+        sub = "×";
+        if (level === 1) {
+          if (Math.random() < 0.6) { a = tenths(1, 49); b = D(ri(2, 9), 0); }
+          else { a = Math.random() < 0.6 ? tenths(1, 99) : hundredths(101, 999); b = D(pickOne([10, 100]), 0); }
+        } else if (level === 2) {
+          if (Math.random() < 0.5) { a = D(ri(1, 9), 1); b = D(ri(1, 9), 1); }
+          else { a = D(pickOne([5, 15, 25, 35, 45, 75, 12, 24, 36, 48]), 2); b = D(ri(2, 9), 0); }
+        } else { // decimal × decimal, one of them bigger than 1
+          a = tenths(11, 49); b = D(ri(1, 9), 1);
+          if (Math.random() < 0.3) b = D(pickOne([12, 15, 25]), 1);
         }
-      }
+        if (Math.random() < 0.5) [a, b] = [b, a];
+      } else if (op === "divide") {
+        sub = "÷";
+        if (level === 1) {
+          const k = ri(0, 2);
+          if (k === 0) { a = Math.random() < 0.5 ? tenths(1, 99) : D(notWhole(11, 99), 0); b = D(10, 0); }
+          else if (k === 1) { a = D(notWhole(2, 99), 0); b = D(100, 0); }
+          else { const n = D(ri(2, 9), 0); a = decCalc(tenths(1, 29), "×", n); b = n; }
+        } else if (level === 2) {
+          if (Math.random() < 0.5) { a = D(ri(1, 9), 0); b = pickOne([D(1, 1), D(2, 1), D(5, 1)]); }
+          else { const n = D(ri(2, 9), 0); a = decCalc(D(ri(1, 9), 2), "×", n); b = n; } // 0.36 ÷ 4 = 0.09
+        } else { // decimal ÷ decimal with a neat answer
+          b = pickOne([D(ri(2, 9), 1), D(pickOne([2, 4, 5, 8, 25]), 2), D(pickOne([12, 15, 25]), 1)]);
+          const q = Math.random() < 0.6 ? D(ri(2, 12), 0) : D(notWhole(1, 9), 1);
+          a = decCalc(b, "×", q);
+        }
+      } else return null;
+      const p = mkDec(a, sub, b);
       if (!p.ans || p.ans.v <= 0 || p.a.v === 0 || p.b.v === 0) continue;
       return p;
     }
@@ -386,6 +425,22 @@
     return { ok, equivalent };
   }
 
+  // A round made only of facts the player missed: items [{ key, mode, level }] (mode = board key the
+  // fact belongs to, so its stats update in the right place). Each fact twice when there are 2–10
+  // (enough to clear it), spread out so the same fact never comes back to back. At most 20.
+  function createMissedSource(items) {
+    const probs = [];
+    for (const it of items.slice(0, 20)) { const p = parseKey(it.key); if (p) probs.push({ ...p, origin: { mode: it.mode, level: it.level } }); }
+    const passes = probs.length >= 2 && probs.length <= 10 ? 2 : 1;
+    const seq = [];
+    for (let i = 0; i < passes; i++) {
+      const sh = shuffle(probs.slice());
+      if (seq.length && sh.length > 1 && sh[0].key === seq[seq.length - 1].key) [sh[0], sh[1]] = [sh[1], sh[0]];
+      seq.push(...sh);
+    }
+    return { count: seq.length, next: () => seq.shift() || null };
+  }
+
   window.OMM = window.OMM || {};
-  window.OMM.Problems = { OPS, LEVELS, BASIC, createSource, parseKey, normDecimal, decimalViable, checkFraction, _factSet: factSet, _random: randomRangeProblem, _dec: { decParse, decStr, decCalc }, _fr: { gcd, Fr, frStr } };
+  window.OMM.Problems = { createMissedSource, OPS, LEVELS, LEVELS_FRAC, LEVELS_DEC, NUMBERS, levelText, boardMode, BASIC, createSource, parseKey, normDecimal, decimalViable, checkFraction, _factSet: factSet, _random: randomRangeProblem, _dec: { decParse, decStr, decCalc }, _fr: { gcd, Fr, frStr } };
 })();

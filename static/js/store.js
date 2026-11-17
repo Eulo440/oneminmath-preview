@@ -34,15 +34,41 @@
       save();
       return prevBest;
     },
-    // fact stats per mode/level: key -> [seen, missed]
+    // fact stats per mode/level: key -> [seen, missed, right-in-a-row]
     recordFact(mode, level, key, correct) {
       const k = id(mode, level);
       const f = (data.facts[k] = data.facts[k] || {});
-      const s = (f[key] = f[key] || [0, 0]);
+      const s = (f[key] = f[key] || [0, 0, 0]);
       s[0]++;
-      if (!correct) s[1]++;
-      else if (s[1] > 0 && s[0] > 3) s[1] = Math.max(0, s[1] - 0.5); // forgive slowly after correct answers
+      if (!correct) { s[1]++; s[2] = 0; }
+      else {
+        s[2] = (s[2] || 0) + 1;
+        if (s[1] > 0 && s[0] > 3) s[1] = Math.max(0, s[1] - 0.5); // forgive slowly after correct answers
+      }
     },
+    // "Missed questions": facts missed on this device that haven't been answered right
+    // MISSED_CLEAR times in a row since the last miss. Most-missed first.
+    missedFacts(mode, level, max = 40) {
+      const f = data.facts[id(mode, level)] || {};
+      return Object.entries(f)
+        .filter(([, s]) => s[1] > 0 && (s[2] || 0) < Store.MISSED_CLEAR)
+        .sort((a, b) => b[1][1] - a[1][1] || a[0].localeCompare(b[0]))
+        .slice(0, max)
+        .map(([k]) => k);
+    },
+    // every board/level on this device: [{ mode, level, key }]
+    allMissed(max = 40) {
+      const out = [];
+      for (const k of Object.keys(data.facts)) {
+        const m = /^(.+)_([123])$/.exec(k); if (!m) continue;
+        for (const key of Store.missedFacts(m[1], +m[2], 999)) out.push({ mode: m[1], level: +m[2], key, n: data.facts[k][key][1] });
+      }
+      // the same fact can have been missed in Mixed and Addition (or in two levels). Show it
+      // only once, under the choice where it's most missed; that also prevents accidental repeats.
+      const seen = new Set();
+      return out.sort((a, b) => b.n - a.n).filter((x) => { if (seen.has(x.key)) return false; seen.add(x.key); return true; }).slice(0, max);
+    },
+    MISSED_CLEAR: 2,
     saveFacts() { save(); },
     weakFacts(mode, level, max = 12) {
       const f = data.facts[id(mode, level)] || {};
