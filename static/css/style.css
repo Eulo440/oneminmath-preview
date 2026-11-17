@@ -129,7 +129,13 @@ input.answer.wide { width: 6.2ch; }
 .frac .fd { padding: .04em .14em 0; }
 .chip .frac, .board .frac { font-size: .75em; }
 .feedback .frac { font-size: .8em; }
-.fracin { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.fracin { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 10px; }
+.fracstack { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.fracin input.answer.whole { width: 3.4ch; font-size: clamp(2rem, min(11vw, 8vh), 3.2rem); padding: 4px 6px; }
+/* mixed numbers in problems, answers and worksheets: whole part right next to its fraction */
+.mixed { white-space: nowrap; }
+.swap { opacity: 0; }
+.mixed .frac { margin-left: .06em; }
 .fracin input.answer { width: 3.6ch; font-size: clamp(1.6rem, min(9vw, 6.2vh), 2.6rem); padding: 2px 8px; border-bottom-width: 3px; }
 .fracbar { display: block; width: 4.6em; height: 4px; border-radius: 2px; background: var(--ink-2); }
 .ans-hint { margin: 0; font-size: .85rem; text-align: center; min-height: 0; }
@@ -139,7 +145,7 @@ input.answer.wide { width: 6.2ch; }
 .feedback.good { color: var(--good); }
 .feedback.miss { color: var(--miss); }
 .tally { min-height: 1.4em; }
-@media (max-height: 520px) { .stage { justify-content: flex-start; gap: 6px; padding-top: 8px; } .tally { display: none; } .fracin { gap: 3px; } .fracbar { height: 3px; } }
+@media (max-height: 520px) { .stage { justify-content: flex-start; gap: 6px; padding-top: 8px; } .tally { display: none; } .fracin { gap: 8px; } .fracstack { gap: 3px; } .fracbar { height: 3px; } }
 
 /* results */
 .results { max-width: 560px; margin: 16px auto 0; text-align: center; }

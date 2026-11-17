@@ -11,7 +11,7 @@
 
   const state = {
     mode: "add", level: 1, numbers: "whole", clock: "timed", missedScope: "here", table: null, roundCount: 20, pending: null,
-    running: false, locked: false, typed: "", typedD: "", kind: "int", slot: "num",
+    running: false, locked: false, typed: "", typedD: "", typedW: "", kind: "int", slot: "num",
     problem: null, source: null, correct: 0, attempts: 0, missed: [],
     startAt: 0, endAt: 0, raf: 0, announced: {}, lastRound: null, hofBoard: null
   };
@@ -26,14 +26,18 @@
     return n;
   }
   // "1/2 + 3/4 = 5/4" -> text with stacked fractions (top number over bottom number)
+  // "94 2/3" (a whole number right before a fraction) is a mixed number: kept together, no gap
   function mathNodes(str) {
-    const out = [];
-    String(str).split(" ").forEach((tok, i) => {
+    const out = [], toks = String(str).split(" ");
+    const fracEl = (m) => el("span", { class: "frac", role: "img", "aria-label": `${m[1]} over ${m[2]}` }, el("span", { class: "fn", text: m[1] }), el("span", { class: "fd", text: m[2] }));
+    for (let i = 0; i < toks.length; i++) {
+      const tok = toks[i];
       if (i) out.push(document.createTextNode(" "));
-      const m = /^(\d+)\/(\d+)$/.exec(tok);
-      if (m) out.push(el("span", { class: "frac", role: "img", "aria-label": `${m[1]} over ${m[2]}` }, el("span", { class: "fn", text: m[1] }), el("span", { class: "fd", text: m[2] })));
+      const m = /^(\d+)\/(\d+)$/.exec(tok), nx = /^(\d+)\/(\d+)$/.exec(toks[i + 1] || "");
+      if (m) out.push(fracEl(m));
+      else if (/^\d+$/.test(tok) && nx) { out.push(el("span", { class: "mixed", "aria-label": `${tok} and ${nx[1]} over ${nx[2]}` }, el("span", { class: "mw", text: tok }), fracEl(nx))); i++; }
       else out.push(document.createTextNode(tok));
-    });
+    }
     return out;
   }
   const kindOf = (numbers) => (numbers === "frac" ? "frac" : numbers === "dec" ? "dec" : "int");
@@ -41,7 +45,10 @@
   const bm = () => P.boardMode(state.mode, state.numbers);
   const withNumbers = (numbers) => (numbers === "frac" ? " with fractions" : numbers === "dec" ? " with decimals" : "");
   const labelFor = (op, numbers) => `${OPS[op].name}${withNumbers(numbers)}`;
-  const kindOfProblem = (p) => (p.kind === "frac" ? "frac" : p.kind === "dec" ? "dec" : "int");
+  // "mix": a problem with a mixed number in it, answered in a whole box + fraction boxes
+  const kindOfProblem = (p) => (p.kind === "frac" ? (p.mixed ? "mix" : "frac") : p.kind === "dec" ? "dec" : "int");
+  const firstSlot = (kind) => (kind === "mix" ? "whole" : "num");
+  const fracKind = () => state.kind === "frac" || state.kind === "mix";
   // facts this device has missed lately, for the current choice or everywhere
   function missedItems(scope = state.missedScope) {
     if (scope === "all") return Store.allMissed(20);
@@ -95,7 +102,8 @@
     const tableOk = state.numbers === "whole" && (state.mode === "multiply" || state.mode === "divide");
     $("tableField").hidden = !tableOk || state.clock === "missed";
     if (!tableOk) { state.table = null; $("tableSelect").value = ""; }
-    const extra = state.numbers === "frac" ? " Answer in simplest form (1/2, not 2/4). Whole numbers go in the top box."
+    const extra = state.numbers === "frac" && state.level === 3 && state.clock !== "missed" ? " Answer in simplest form. Mixed numbers like 3 1/2: whole part in the left box."
+      : state.numbers === "frac" ? " Answer in simplest form (1/2, not 2/4). Whole numbers go in the top box."
       : state.numbers === "dec" ? " Use a dot for decimals, like 2.5." : "";
     $("setupHint").className = "hint muted";
     if (missed) {
@@ -182,11 +190,13 @@
     if (Scores.hasBoard(bm()) && !Scores.readOnly && state.clock === "timed" && !state.table) loadHof(); // fresh top 10 for the initials check
     state.source = missedSrc || createSource({ mode: state.mode, level: state.level, numbers: state.numbers, table: state.table, weakKeys: Store.weakFacts(bm(), state.level) });
     state.roundCount = missedSrc ? missedSrc.count : PRACTICE_COUNT;
-    state.pending = missedSrc ? missedSrc.next() : null; // a missed-questions round can mix whole numbers, fractions and decimals
-    state.correct = 0; state.attempts = 0; state.missed = []; state.typed = ""; state.typedD = ""; state.announced = {};
+    // drawn one ahead so the answer box can change type (whole / fraction / mixed number / decimal)
+    // inside the key event that ends the problem before it (phones keep the keyboard up)
+    state.pending = state.source.next();
+    state.correct = 0; state.attempts = 0; state.missed = []; state.typed = ""; state.typedD = ""; state.typedW = ""; state.announced = {};
     state.running = false; state.locked = true;
-    state.kind = state.pending ? kindOfProblem(state.pending) : kindOf(state.numbers); state.slot = "num";
-    setupAnswerUI();
+    state.kind = state.pending ? kindOfProblem(state.pending) : kindOf(state.numbers); state.slot = firstSlot(state.kind);
+    setupAnswerUI(); swapping(false);
     show("play");
     answerEls().forEach((x) => { x.value = ""; x.classList.remove("good", "miss"); });
     input().focus({ preventScroll: true }); // inside the user's tap, so iOS/Android open the number keyboard
@@ -225,37 +235,43 @@
     state.raf = requestAnimationFrame(frame);
   }
 
+  // opacity only: a hidden (display/visibility) box would lose focus and close the phone keyboard
+  const swapping = (on) => { for (const id of ["answerInput", "fracIn", "ansHint"]) $(id).classList.toggle("swap", on); };
   function nextProblem() {
+    swapping(false);
     state.problem = state.pending || state.source.next();
     state.pending = null;
     if (kindOfProblem(state.problem) !== state.kind) switchKind(kindOfProblem(state.problem)); // fallback; normally done in judge()
-    state.typed = ""; state.typedD = "";
+    state.typed = ""; state.typedD = ""; state.typedW = "";
     $("problem").replaceChildren(...mathNodes(`${state.problem.text} =`));
     $("problem").setAttribute("aria-label", spoken(state.problem));
     renderAnswer();
   }
   function spoken(p) {
     const W = { "+": "plus", "−": "minus", "×": "times", "÷": "divided by" };
-    if (p.sub) return p.text.replace(/(\d+)\/(\d+)/g, "$1 over $2").replace(/[+−×÷]/, (c) => W[c]);
+    if (p.sub) return p.text.replace(/(\d+) (\d+)\/(\d+)/g, "$1 and $2 over $3").replace(/(\d+)\/(\d+)/g, "$1 over $2").replace(/[+−×÷]/, (c) => W[c]);
     const w = { add: "plus", subtract: "minus", multiply: "times", divide: "divided by" }[p.op];
     return `${p.a} ${w} ${p.b}`;
   }
   // The answer box: one box for whole numbers and decimals; a top box over a bottom box for fractions.
-  const numBox = () => $("numInput"), denBox = () => $("denInput");
-  const answerEls = () => (state.kind === "frac" ? [numBox(), denBox()] : [$("answerInput")]);
-  const isAnswerEl = (t) => t === $("answerInput") || t === numBox() || t === denBox();
-  const input = () => (state.kind === "frac" ? (state.slot === "den" ? denBox() : numBox()) : $("answerInput"));
+  // Mixed numbers: a whole box on the left of the top/bottom boxes.
+  const numBox = () => $("numInput"), denBox = () => $("denInput"), wholeBox = () => $("wholeInput");
+  const answerEls = () => (state.kind === "mix" ? [wholeBox(), numBox(), denBox()] : state.kind === "frac" ? [numBox(), denBox()] : [$("answerInput")]);
+  const isAnswerEl = (t) => t === $("answerInput") || t === numBox() || t === denBox() || t === wholeBox();
+  const input = () => (fracKind() ? (state.slot === "den" ? denBox() : state.slot === "whole" && state.kind === "mix" ? wholeBox() : numBox()) : $("answerInput"));
   function setupAnswerUI() {
-    const ai = $("answerInput"), frac = state.kind === "frac", dec = state.kind === "dec";
-    ai.hidden = frac; $("fracIn").hidden = !frac;
+    const ai = $("answerInput"), frac = fracKind(), dec = state.kind === "dec";
+    ai.hidden = frac; $("fracIn").hidden = !frac; wholeBox().hidden = state.kind !== "mix";
+    $("fracIn").classList.toggle("withwhole", state.kind === "mix");
     ai.setAttribute("inputmode", dec ? "decimal" : "numeric");
     if (dec) ai.removeAttribute("pattern"); else ai.setAttribute("pattern", "[0-9]*"); // iOS: [0-9]* would hide the dot
     ai.maxLength = dec ? 7 : 4;
     ai.classList.toggle("wide", dec);
-    $("ansHint").textContent = frac ? "Simplest form. Whole number? Use the top box only." : dec ? "Use a dot: 2.5 or .5" : "";
+    $("ansHint").textContent = state.kind === "mix" ? "Simplest form: 3 1/2. Whole number? Left box only." : frac ? "Simplest form. Whole number? Use the top box only." : dec ? "Use a dot: 2.5 or .5" : "";
   }
   function renderAnswer() {
-    if (state.kind === "frac") {
+    if (state.kind === "mix" && wholeBox().value !== state.typedW) wholeBox().value = state.typedW;
+    if (fracKind()) {
       if (numBox().value !== state.typed) numBox().value = state.typed;
       if (denBox().value !== state.typedD) denBox().value = state.typedD;
     } else if ($("answerInput").value !== state.typed) $("answerInput").value = state.typed;
@@ -272,12 +288,12 @@
   }
   // change the answer box (whole / decimal / fraction) between two problems of a missed-questions round
   function switchKind(kind) {
-    state.kind = kind; state.slot = "num"; state.typed = ""; state.typedD = "";
+    state.kind = kind; state.slot = firstSlot(kind); state.typed = ""; state.typedD = ""; state.typedW = "";
     setupAnswerUI();
-    answerEls().forEach((x) => { x.value = ""; x.classList.remove("good", "miss"); });
+    [$("answerInput"), wholeBox(), numBox(), denBox()].forEach((x) => { x.value = ""; x.classList.remove("good", "miss"); });
     if (document.body.dataset.view === "play") input().focus({ preventScroll: true });
   }
-  function blurAnswer() { for (const x of [$("answerInput"), numBox(), denBox()]) if (document.activeElement === x) x.blur(); }
+  function blurAnswer() { for (const x of [$("answerInput"), numBox(), denBox(), wholeBox()]) if (document.activeElement === x) x.blur(); }
 
   // Called on every change to the answer box. Digits only (no answer is ever negative).
   function onInput() {
@@ -309,13 +325,14 @@
   // Fractions: top box then bottom box. The top box hands over to the bottom box once it has as
   // many digits as the answer's top number; the bottom box checks at the bottom number's length.
   function onFracInput(which) {
-    const box = which === "num" ? numBox() : denBox();
+    const box = which === "whole" ? wholeBox() : which === "num" ? numBox() : denBox();
     if (!state.running || state.locked) { renderAnswer(); return; }
-    let v = box.value.replace(/\D/g, "").slice(0, 3);
+    let v = box.value.replace(/\D/g, "").slice(0, which === "num" ? 4 : 3);
     if (v.length > 1) v = v.replace(/^0+(?=\d)/, "");
     if (box.value !== v) box.value = v;
-    if (which === "num") state.typed = v; else state.typedD = v;
+    if (which === "whole") state.typedW = v; else if (which === "num") state.typed = v; else state.typedD = v;
     if (!v) return;
+    if (state.kind === "mix") return onMixedInput(which, v);
     const a = state.problem.ans;
     const nLen = String(a.n).length, dLen = a.d === 1 ? 1 : String(a.d).length;
     if (which === "num") {
@@ -330,8 +347,38 @@
       judge();
     }
   }
+  // Mixed numbers: whole box -> top box -> bottom box. The whole box hands over at the answer's
+  // whole-part length (or checks right away when the answer is a whole number); the top and bottom
+  // boxes work as above, for whatever is left after the whole part typed (all of it, if blank).
+  function onMixedInput(which, v) {
+    const a = state.problem.ans, m = P.mixParts(a);
+    if (which === "whole") {
+      if (v.length < String(m.w).length) return;
+      if (state.typed && state.typedD) return judge(); // went back to fix the whole part
+      if (m.n === 0 && !state.typed) return judge();
+      return moveTo("num");
+    }
+    const tn = a.n - Number(state.typedW || 0) * a.d; // what's left is tn / a.d
+    const g = tn > 0 ? P._fr.gcd(tn, a.d) : 1;
+    const nLen = tn > 0 ? String(tn / g).length : 1, dLen = tn > 0 ? String(a.d / g).length : 1;
+    if (which === "num") {
+      if (v.length < nLen) return;
+      if (state.typedD.length >= dLen) return judge();
+      return moveTo("den");
+    }
+    if (!state.typed || v.length < dLen) return;
+    const k = Number(state.typed), eq = tn > 0 && (k * a.d) % tn === 0 ? String((k * a.d) / tn) : "";
+    if (eq.length > v.length && eq.startsWith(v)) return;
+    judge();
+  }
   function submitEnter() {
     if (!state.running || state.locked) return;
+    if (state.kind === "mix") {
+      if (state.slot === "whole") return state.typedW ? moveTo("num") : undefined; // Enter in the whole box = go to the top box
+      if (state.slot === "num") { if (state.typed) return moveTo("den"); return state.typedW ? judge() : moveTo("whole"); }
+      if (!state.typed) return moveTo("num");
+      return judge();
+    }
     if (state.kind === "frac") {
       if (state.slot === "num" && state.typed) return moveTo("den"); // Enter in the top box = go to the bottom box
       if (!state.typed) return moveTo("num");
@@ -343,7 +390,12 @@
   function judge() {
     const p = state.problem;
     let ok, note = "";
-    if (state.kind === "frac") {
+    if (state.kind === "mix") {
+      const r = P.checkFraction(p, state.typed, state.typedD, state.typedW);
+      ok = r.ok;
+      const said = [state.typedW, state.typed ? state.typed + (state.typedD ? "/" + state.typedD : "") : ""].filter(Boolean).join(" ");
+      if (r.equivalent) note = P.mixParts(p.ans).n === 0 && !state.typedW ? `${said} is equal, but put whole numbers in the left box` : `${said} is equal, but simplify it`;
+    } else if (state.kind === "frac") {
       const r = P.checkFraction(p, state.typed, state.typedD);
       ok = r.ok;
       if (r.equivalent) note = `${state.typed}${state.typedD ? "/" + state.typedD : ""} is equal, but simplify it`;
@@ -364,12 +416,16 @@
       fb.className = "feedback miss";
       answerEls().forEach((x) => x.classList.add("miss"));
     }
-    // fractions: go back to the top box now, inside the key event, so phones keep the keyboard up
-    if (state.kind === "frac" && state.slot !== "num") moveTo("num");
-    // missed-questions rounds: if the next one needs a different box, switch now, inside the key event
-    if (state.clock === "missed" && state.attempts < state.roundCount) {
+    // fractions: go back to the first box now, inside the key event, so phones keep the keyboard up
+    if (fracKind() && state.slot !== firstSlot(state.kind)) moveTo(firstSlot(state.kind));
+    // if the next problem needs a different box (fraction <-> mixed number, or a missed-questions round
+    // mixing whole numbers, fractions and decimals), switch now, inside the key event
+    if (state.clock === "timed" || state.attempts < state.roundCount) {
       state.pending = state.source.next();
-      if (state.pending && kindOfProblem(state.pending) !== state.kind) switchKind(kindOfProblem(state.pending));
+      if (state.pending && kindOfProblem(state.pending) !== state.kind) {
+        switchKind(kindOfProblem(state.pending));
+        swapping(true); // the new boxes stay invisible until their problem shows (the reveal is for the old one)
+      }
     }
     $("tally").textContent = state.clock === "timed" ? `${state.correct} correct` : "";
     if (state.clock !== "timed") $("timeText").textContent = `${state.attempts}/${state.roundCount}`;
@@ -515,7 +571,7 @@
       pg.append(el("div", { class: "sheet-head" },
         el("h1", { text: heading }),
         el("p", { text: withAnswers ? "Answer key" : "Name ____________________   Date __________   Correct ____ / " + problems.length }),
-        ...(problems.some((p) => p.kind === "frac") && !withAnswers ? [el("p", { class: "sheet-note", text: "Write each answer in simplest form." })] : [])));
+        ...(problems.some((p) => p.kind === "frac") && !withAnswers ? [el("p", { class: "sheet-note", text: problems.some((p) => p.mixed) ? "Write each answer in simplest form, like 3 1/2 (not 7/2)." : "Write each answer in simplest form." })] : [])));
       const grid = el("ol", { class: "sheet-grid" + (problems.some((p) => p.kind === "frac") ? " fracs" : "") });
       problems.forEach((p) => grid.append(el("li", {}, el("span", {}, ...mathNodes(`${p.text} =`), " "), el("span", { class: "blank" }, ...(withAnswers ? mathNodes(String(p.answer)) : [])))));
       pg.append(grid, el("p", { class: "sheet-foot", text: "oneminmath.com · try it in one minute" }));
@@ -561,19 +617,21 @@
       if (e.key === "Enter") { e.preventDefault(); submitEnter(); }
       else if (e.key === "Escape") { e.preventDefault(); quitRound(); }
     });
-    for (const [box, which] of [[numBox(), "num"], [denBox(), "den"]]) {
+    for (const [box, which] of [[wholeBox(), "whole"], [numBox(), "num"], [denBox(), "den"]]) {
       box.addEventListener("input", () => onFracInput(which));
       box.addEventListener("focus", () => { state.slot = which; });
       box.addEventListener("keydown", (e) => {
         if (e.key === "Enter") { e.preventDefault(); submitEnter(); }
         else if (e.key === "Escape") { e.preventDefault(); quitRound(); }
+        else if (which === "whole" && (e.key === " " || e.key === "ArrowRight" || e.key === "/")) { e.preventDefault(); if (!state.locked) moveTo("num"); }
+        else if (which === "num" && state.kind === "mix" && (e.key === "ArrowLeft" || (e.key === "Backspace" && !box.value))) { e.preventDefault(); moveTo("whole"); }
         else if (which === "num" && (e.key === "/" || e.key === "ArrowDown")) { e.preventDefault(); if (!state.locked) moveTo("den"); }
         else if (which === "den" && (e.key === "ArrowUp" || (e.key === "Backspace" && !box.value))) { e.preventDefault(); moveTo("num"); }
         else if (which === "den" && e.key === "/") e.preventDefault();
       });
     }
     // keep the box focused for the whole round
-    for (const box of [ai, numBox(), denBox()]) {
+    for (const box of [ai, numBox(), denBox(), wholeBox()]) {
       box.addEventListener("blur", () => { if (document.body.dataset.view === "play") setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) focusInput(); }, 0); });
     }
     $("play").addEventListener("click", (e) => { if (!e.target.closest("button") && !isAnswerEl(e.target)) focusInput(); });

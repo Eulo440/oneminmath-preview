@@ -25,10 +25,10 @@
   // Number types (section 3 on the setup screen). Whole numbers are the original game, unchanged.
   const NUMBERS = { whole: "Whole numbers", frac: "Fractions", dec: "Decimals" };
   const LEVELS_FRAC = {
-    add:      { 1: "Same bottom number: 2/7 + 3/7", 2: "Different bottoms: 1/2 + 1/4", 3: "Bigger bottoms: 3/8 + 1/6" },
-    subtract: { 1: "Same bottom number: 5/8 − 2/8", 2: "Different bottoms: 3/4 − 1/2", 3: "Bigger bottoms, 1 − 3/8" },
-    multiply: { 1: "Whole × fraction: 3/4 × 8", 2: "Fraction × fraction: 1/2 × 3/4", 3: "Bigger, with cancelling: 2/3 × 9/10" },
-    divide:   { 1: "By a whole or unit fraction: 1/2 ÷ 3", 2: "Fraction ÷ fraction, unit: 1/6 ÷ 1/3", 3: "Any fractions: 3/4 ÷ 3/8" },
+    add:      { 1: "Same bottom number: 2/7 + 3/7", 2: "Different bottoms: 1/2 + 1/4", 3: "Mixed numbers: 94 2/3 + 45 1/2" },
+    subtract: { 1: "Same bottom number: 5/8 − 2/8", 2: "Different bottoms: 3/4 − 1/2", 3: "Mixed, with borrowing: 52 1/4 − 18 2/3" },
+    multiply: { 1: "Whole × fraction: 3/4 × 8", 2: "Fraction × fraction: 1/2 × 3/4", 3: "Cancelling, and 3 × 2 1/2" },
+    divide:   { 1: "By a whole or unit fraction: 1/2 ÷ 3", 2: "Fraction ÷ fraction, unit: 1/6 ÷ 1/3", 3: "Any fractions, and 4 1/2 ÷ 3" },
     smarty:   { 1: "All four, level 1", 2: "All four, level 2", 3: "All four, level 3" }
   };
   const LEVELS_DEC = {
@@ -218,6 +218,10 @@
   const gcd = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a; };
   const Fr = (n, d = 1) => { const g = gcd(n, d) || 1; return { n: n / g, d: d / g }; };
   const frStr = (f) => (f.d === 1 ? String(f.n) : `${f.n}/${f.d}`);
+  // mixed numbers: 7/3 -> "2 1/3" (shown), "2_1/3" (inside fact keys); proper fractions and wholes as before
+  const improper = (f) => f.d > 1 && f.n > f.d;
+  const mixParts = (f) => ({ w: Math.floor(f.n / f.d), n: f.n % f.d, d: f.d });
+  const mixStr = (f, sep = " ") => { if (!improper(f)) return frStr(f); const m = mixParts(f); return `${m.w}${sep}${m.n}/${m.d}`; };
   const frSimplest = (n, d) => gcd(n, d) === 1;
   function frCalc(a, sub, b) {
     if (sub === "+") return Fr(a.n * b.d + b.n * a.d, a.d * b.d);
@@ -227,9 +231,11 @@
   }
   function mkFrac(a, sub, b) {
     const ans = frCalc(a, sub, b);
-    const A = frStr(a), B = frStr(b);
+    const A = mixStr(a, "_"), B = mixStr(b, "_");
     const comm = sub === "+" || sub === "×";
-    return { op: "fractions", kind: "frac", sub, a, b, ans, answer: frStr(ans), key: `F${A}${sub}${B}`, twin: comm ? `F${B}${sub}${A}` : `F${A}${sub}${B}`, text: `${A} ${sub} ${B}` };
+    // mixed: a problem with a mixed number in it; its answer goes in a whole box + fraction boxes
+    const mixed = improper(a) || improper(b);
+    return { op: "fractions", kind: "frac", mixed, sub, a, b, ans, answer: mixStr(ans), key: `F${A}${sub}${B}`, twin: comm ? `F${B}${sub}${A}` : `F${A}${sub}${B}`, text: `${mixStr(a)} ${sub} ${mixStr(b)}` };
   }
   // a random proper fraction n/d in simplest form
   function properFrac(d) { let n; do { n = ri(1, d - 1); } while (!frSimplest(n, d)); return { n, d }; }
@@ -238,6 +244,29 @@
   const PAIRS_BIG = [[3, 8], [6, 8], [4, 5], [3, 5], [6, 9], [8, 12], [4, 10], [5, 6], [2, 9], [3, 10], [8, 6], [9, 12], [2, 7], [3, 7], [4, 9]];
   const pickPair = (list) => { const pr = list[ri(0, list.length - 1)]; return Math.random() < 0.5 ? pr : [pr[1], pr[0]]; };
   const W = (n) => ({ n, d: 1 });
+  const M = (w, f) => ({ n: w * f.d + f.n, d: f.d }); // whole + proper fraction -> improper
+  const bigWhole = () => (Math.random() < 0.35 ? ri(1, 12) : ri(2, 99));
+  // Level 3 mixed numbers, + and −: whole parts up to 99, bottoms with a common denominator of 12 or less.
+  // Subtraction: about half need borrowing (52 1/4 − 18 2/3), some are whole − mixed; never negative,
+  // and the answer always has a whole part.
+  function mixedAddSub(plus) {
+    const [d1, d2] = Math.random() < 0.2 ? (() => { const d = pickOne([2, 3, 4, 5, 6, 8, 10, 12]); return [d, d]; })() : pickPair(PAIRS_SMALL);
+    const f1 = properFrac(d1), f2 = properFrac(d2);
+    if (plus) {
+      const k = Math.random();
+      if (k < 0.82) return { a: M(bigWhole(), f1), b: M(bigWhole(), f2) };
+      return Math.random() < 0.5 ? { a: M(bigWhole(), f1), b: f2 } : { a: f2, b: M(bigWhole(), f1) }; // 23 3/4 + 1/2
+    }
+    if (Math.random() < 0.15) { const w = ri(2, 99); return { a: W(w), b: M(ri(1, w - 1), f2) }; } // 50 − 3 1/4
+    const borrow = Math.random() < 0.55;
+    // order the fraction parts so the top one is smaller (borrow) or bigger (no borrow)
+    let [fa, fb] = [f1, f2];
+    const less = fa.n * fb.d < fb.n * fa.d;
+    if (borrow !== less) [fa, fb] = [fb, fa];
+    const wb = ri(1, 98), wa = wb + (borrow ? ri(2, Math.max(2, 99 - wb)) : ri(1, Math.max(1, 99 - wb)));
+    if (wa > 99) return null;
+    return { a: M(wa, fa), b: M(wb, fb) };
+  }
   // Every answer is a proper fraction in simplest form or a whole number (no mixed numbers to type).
   const fracOk = (r) => r.n > 0 && (r.d === 1 || r.n < r.d);
   function fractionProblem(op, level) {
@@ -255,6 +284,9 @@
         } else if (level === 2) {
           const [d1, d2] = pickPair(PAIRS_SMALL);
           p = { a: properFrac(d1), b: properFrac(d2) };
+        } else if (Math.random() < 0.6) {
+          p = mixedAddSub(plus);
+          if (!p) continue;
         } else {
           if (!plus && Math.random() < 0.25) p = { a: W(1), b: properFrac(ri(3, 12)) }; // 1 − 3/8
           else { const [d1, d2] = pickPair(PAIRS_BIG); p = { a: properFrac(d1), b: properFrac(d2) }; }
@@ -268,6 +300,9 @@
           [p.a, p.b] = Math.random() < 0.5 ? [w, x] : [x, w];
         } else if (level === 2) {
           p.a = properFrac(ri(2, 6)); p.b = properFrac(ri(2, 6));
+        } else if (Math.random() < 0.2) { // small whole × small mixed number: 3 × 2 1/2 = 7 1/2
+          const w = ri(2, 6), m = M(ri(1, 5), properFrac(pickOne([2, 3, 4])));
+          [p.a, p.b] = Math.random() < 0.5 ? [W(w), m] : [m, W(w)];
         } else { // bigger bottoms; the product must cancel (simplify) at least once
           p.a = properFrac(ri(3, 10)); p.b = properFrac(ri(3, 10));
           if (gcd(p.a.n * p.b.n, p.a.d * p.b.d) === 1) continue;
@@ -281,13 +316,23 @@
           const d = ri(2, 6), m = ri(2, 4);
           if (d * m > 12) continue;
           [p.a, p.b] = Math.random() < 0.6 ? [{ n: 1, d: d * m }, { n: 1, d }] : [{ n: 1, d }, { n: 1, d: d * m }]; // 1/6 ÷ 1/3 or 1/3 ÷ 1/6 = 2
+        } else if (Math.random() < 0.3) { // small mixed numbers with a neat answer
+          if (Math.random() < 0.6) { // 4 1/2 ÷ 3 = 1 1/2  (the answer times the whole)
+            const n = ri(2, 4), q = M(ri(1, 4), properFrac(pickOne([2, 3, 4])));
+            p.a = frCalc(q, "×", W(n)); p.b = W(n);
+          } else { // 2 1/2 ÷ 1/2 = 5
+            const u = { n: 1, d: pickOne([2, 3, 4]) };
+            p.a = frCalc(W(ri(3, 15)), "×", u); p.b = u;
+          }
+          if (!improper(p.a)) continue;
         } else { // any proper fractions, answer proper or whole
           p.a = properFrac(ri(2, 10)); p.b = properFrac(ri(2, 10));
           if (p.a.n === p.b.n && p.a.d === p.b.d) continue;
         }
       } else return null;
       const out = mkFrac(p.a, p.sub, p.b);
-      if (!fracOk(out.ans)) continue;
+      if (out.mixed ? !(out.ans.n >= out.ans.d) : !fracOk(out.ans)) continue; // mixed: the answer has a whole part
+      if (out.mixed && (op === "multiply" || op === "divide") && out.ans.d > 4) continue;
       if (out.ans.d > ((op === "multiply" || op === "divide") ? 24 : 36)) continue; // keep answers mental-math friendly
       return out;
     }
@@ -383,9 +428,9 @@
   }
 
   function parseNewKey(key) {
-    let m = /^F(\d+(?:\/\d+)?)([+−×÷])(\d+(?:\/\d+)?)$/.exec(key);
+    let m = /^F((?:\d+_)?\d+(?:\/\d+)?)([+−×÷])((?:\d+_)?\d+(?:\/\d+)?)$/.exec(key);
     if (m) {
-      const f = (t) => { const [n, d = "1"] = t.split("/"); return { n: +n, d: +d }; };
+      const f = (t) => { const [w, r] = t.includes("_") ? t.split("_") : ["0", t]; const [n, d = "1"] = r.split("/"); if (w !== "0" && (d === "1" || +n >= +d)) return { n: 0, d: 0 }; return { n: +w * +d + +n, d: +d }; };
       const a = f(m[1]), b = f(m[3]);
       if (!a.d || !b.d || (m[2] === "÷" && !b.n)) return null;
       const p = mkFrac(a, m[2], b);
@@ -417,7 +462,23 @@
     return reps.some((c) => { const full = c.includes(".") ? c : c + "."; return full.startsWith(t) || (t.startsWith(full) && /^0*$/.test(t.slice(full.length))); });
   }
   // Fraction answers: top box n, bottom box d ("" = whole number). Must be in simplest form.
-  function checkFraction(p, nStr, dStr) {
+  // Mixed-number problems also have a whole box w: the answer must be in simplest mixed form
+  // (140 1/6; a whole answer in the whole box alone). Equal answers in another form (841/6, 139 7/6,
+  // 140 2/12) are "equivalent": counted as a miss, with a "simplify it" note.
+  function checkMixed(p, wStr, nStr, dStr) {
+    const no = { ok: false, equivalent: false };
+    if (wStr === "" && nStr === "") return no;
+    if (nStr === "" && dStr !== "") return no;
+    const w = wStr === "" ? 0 : Number(wStr), n = nStr === "" ? 0 : Number(nStr), d = dStr === "" ? 1 : Number(dStr);
+    if (![w, n, d].every(Number.isInteger) || d === 0) return no;
+    const m = mixParts(p.ans);
+    const want = m.n === 0 ? [String(m.w), "", ""] : [m.w ? String(m.w) : "", String(m.n), String(m.d)];
+    const ok = wStr === want[0] && nStr === want[1] && dStr === want[2];
+    const equivalent = !ok && (w * d + n) * p.ans.d === p.ans.n * d;
+    return { ok, equivalent };
+  }
+  function checkFraction(p, nStr, dStr, wStr) {
+    if (p.mixed) return checkMixed(p, wStr || "", nStr, dStr);
     const n = Number(nStr), d = dStr === "" ? 1 : Number(dStr);
     if (nStr === "" || !Number.isInteger(n) || !Number.isInteger(d) || d === 0) return { ok: false, equivalent: false };
     const ok = n === p.ans.n && d === p.ans.d;
@@ -442,5 +503,5 @@
   }
 
   window.OMM = window.OMM || {};
-  window.OMM.Problems = { createMissedSource, OPS, LEVELS, LEVELS_FRAC, LEVELS_DEC, NUMBERS, levelText, boardMode, BASIC, createSource, parseKey, normDecimal, decimalViable, checkFraction, _factSet: factSet, _random: randomRangeProblem, _dec: { decParse, decStr, decCalc }, _fr: { gcd, Fr, frStr } };
+  window.OMM.Problems = { createMissedSource, OPS, LEVELS, LEVELS_FRAC, LEVELS_DEC, NUMBERS, levelText, boardMode, BASIC, createSource, parseKey, normDecimal, decimalViable, checkFraction, mixParts, _factSet: factSet, _random: randomRangeProblem, _dec: { decParse, decStr, decCalc }, _fr: { gcd, Fr, frStr, mixStr } };
 })();

@@ -118,13 +118,18 @@
         <input id="answerInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
         <div class="fracin" id="fracIn" hidden>
-          <input id="numInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3"
+          <input id="wholeInput" class="answer whole" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" hidden
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next"
+                 aria-label="Answer, whole number part. Leave it empty if there is none">
+          <div class="fracstack">
+          <input id="numInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next"
                  aria-label="Answer, top number (numerator)">
           <span class="fracbar" aria-hidden="true"></span>
           <input id="denInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
                  aria-label="Answer, bottom number (denominator). Leave it empty for a whole number">
+        </div>
         </div>
         <p class="ans-hint muted" id="ansHint"></p>
         <div class="feedback" id="feedback" aria-live="polite"></div>
