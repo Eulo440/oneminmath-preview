@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PREVIEW · One Minute Math</title>
+  <meta name="description" content="One-minute math practice for kids and adults. Addition, subtraction, multiplication, division, fractions and decimals. No ads, no prizes, no sign-up.">
+  <meta name="theme-color" content="#141729">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://gc.zgo.at; style-src 'self'; img-src 'self' data: https://oneminmath.goatcounter.com; connect-src 'self' https://*.supabase.co https://oneminmath.goatcounter.com; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="icon" href="static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="static/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="static/apple-touch-icon.png">
+  <link rel="manifest" href="static/site.webmanifest">
+  <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="One Minute Math home"><span class="brand-mark" aria-hidden="true">1′</span> One Minute Math</a>
+    <nav>
+      <button type="button" class="link" id="printNav">Print a worksheet</button>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- HOME -->
+    <section id="home" class="view" aria-labelledby="homeTitle">
+      <div class="hero">
+        <h1 id="homeTitle">One minute. Just math.</h1>
+        <p class="lede">Quick, calm practice for kids and grown-ups. No ads, no prizes, no sign-up.</p>
+      </div>
+
+      <div class="setup card">
+        <div class="field">
+          <h2 class="label" id="opLabel">1. Pick an operation</h2>
+          <div class="tiles" role="group" aria-labelledby="opLabel" id="opTiles">
+            <button type="button" class="tile" data-mode="add" aria-pressed="true"><span class="sym" aria-hidden="true">+</span><span>Addition</span></button>
+            <button type="button" class="tile" data-mode="subtract" aria-pressed="false"><span class="sym" aria-hidden="true">−</span><span>Subtraction</span></button>
+            <button type="button" class="tile" data-mode="multiply" aria-pressed="false"><span class="sym" aria-hidden="true">×</span><span>Multiplication</span></button>
+            <button type="button" class="tile" data-mode="divide" aria-pressed="false"><span class="sym" aria-hidden="true">÷</span><span>Division</span></button>
+            <button type="button" class="tile" data-mode="fractions" aria-pressed="false"><span class="sym" aria-hidden="true">½</span><span>Fractions</span></button>
+            <button type="button" class="tile" data-mode="decimals" aria-pressed="false"><span class="sym" aria-hidden="true">.5</span><span>Decimals</span></button>
+            <button type="button" class="tile" data-mode="smarty" aria-pressed="false"><span class="sym" aria-hidden="true">±</span><span>Mixed</span></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <h2 class="label" id="lvlLabel">2. Pick a level</h2>
+          <div class="levels" role="group" aria-labelledby="lvlLabel" id="lvlTiles">
+            <button type="button" class="level" data-level="1" aria-pressed="true"><strong>Level 1</strong><small></small></button>
+            <button type="button" class="level" data-level="2" aria-pressed="false"><strong>Level 2</strong><small></small></button>
+            <button type="button" class="level" data-level="3" aria-pressed="false"><strong>Level 3</strong><small></small></button>
+          </div>
+        </div>
+
+        <div class="field row">
+          <div id="tableField" hidden>
+            <label class="label" for="tableSelect">Focus on one table <span class="muted">(practice only)</span></label>
+            <select id="tableSelect">
+              <option value="">All tables in this level</option>
+            </select>
+          </div>
+          <div>
+            <span class="label" id="clockLabel">Clock</span>
+            <div class="seg" role="group" aria-labelledby="clockLabel" id="clockSeg">
+              <button type="button" data-clock="timed" aria-pressed="true">1 minute</button>
+              <button type="button" data-clock="practice" aria-pressed="false">Practice (no clock)</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn primary big" id="startBtn">Start <span class="kbd" aria-hidden="true">Enter</span></button>
+        <p class="hint muted" id="setupHint"></p>
+      </div>
+
+      <div class="grid2">
+        <section class="card" aria-labelledby="progTitle">
+          <h2 id="progTitle">Your progress <span class="muted small" id="progMode"></span></h2>
+          <div id="progress"></div>
+        </section>
+        <section class="card" aria-labelledby="hofTitle">
+          <h2 id="hofTitle">Hall of Fame <span class="muted small" id="hofMode"></span></h2>
+          <div id="hof" aria-live="polite"></div>
+          <p class="muted small">Top 10 for each operation and level. Make the list and you can add your initials.</p>
+        </section>
+      </div>
+    </section>
+
+    <!-- PLAY -->
+    <section id="play" class="view" hidden aria-label="Practice round">
+      <div class="playbar">
+        <button type="button" class="btn ghost" id="quitBtn" aria-label="Stop this round">✕ Stop</button>
+        <div class="timer" aria-hidden="true"><div class="timer-fill" id="timerFill"></div></div>
+        <span class="time" id="timeText" aria-live="off">60</span>
+      </div>
+      <p class="sr-only" id="timeAnnounce" aria-live="polite"></p>
+      <div class="stage" id="stage">
+        <div class="problem" id="problem" aria-live="assertive" aria-atomic="true">Ready?</div>
+        <label class="sr-only" for="answerInput">Your answer</label>
+        <input id="answerInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+        <div class="fracin" id="fracIn" hidden>
+          <input id="numInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next"
+                 aria-label="Answer, top number (numerator)">
+          <span class="fracbar" aria-hidden="true"></span>
+          <input id="denInput" class="answer" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+                 aria-label="Answer, bottom number (denominator). Leave it empty for a whole number">
+        </div>
+        <p class="ans-hint muted" id="ansHint"></p>
+        <div class="feedback" id="feedback" aria-live="polite"></div>
+        <div class="tally muted" id="tally"></div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section id="results" class="view" hidden aria-labelledby="resTitle">
+      <div class="card results">
+        <div id="hofOffer" hidden class="initials-prompt" role="group" aria-labelledby="initTitle">
+          <p class="arcade-title" id="initTitle">New high score!</p>
+          <p class="init-sub" id="initRank">Enter your initials</p>
+          <div class="initials" id="initialsBox">
+            <span class="slot" aria-hidden="true"></span><span class="slot" aria-hidden="true"></span><span class="slot" aria-hidden="true"></span>
+            <input id="initialsInput" type="text" maxlength="3" inputmode="text" autocapitalize="characters"
+                   autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"
+                   aria-label="Your initials, 3 letters" aria-describedby="hofMsg">
+          </div>
+          <p class="init-msg" id="hofMsg" aria-live="polite"></p>
+          <div class="nickrow">
+            <button type="button" class="btn primary big" id="hofAdd">Save <span class="kbd" aria-hidden="true">Enter</span></button>
+            <button type="button" class="btn ghost big" id="hofSkip">Skip</button>
+          </div>
+        </div>
+        <p class="muted" id="resMode"></p>
+        <h1 id="resTitle"><span class="bignum" id="resScore">0</span> <span class="resunit">correct</span></h1>
+        <p id="resDetail"></p>
+        <p class="vsbest" id="resBest"></p>
+        <div id="resSpark"></div>
+        <div id="resMissed"></div>
+        <div class="actions">
+          <button type="button" class="btn primary big" id="againBtn">Go again <span class="kbd" aria-hidden="true">Enter</span></button>
+          <button type="button" class="btn ghost big" id="menuBtn">Change</button>
+          <button type="button" class="btn ghost big" id="printMissedBtn" hidden>Print these facts</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- PRINTABLE WORKSHEET (only visible when printing) -->
+  <section id="sheet" class="sheet" aria-hidden="true"></section>
+
+  <footer class="site-footer">
+    <p><button type="button" class="link" id="resetBtn">Clear my progress on this device</button></p>
+  </footer>
+
+  <script src="static/js/config.js"></script>
+  <script src="static/js/problems.js"></script>
+  <script src="static/js/store.js"></script>
+  <script src="static/js/scores.js"></script>
+  <script src="static/js/app.js"></script>
+</body>
+</html>
