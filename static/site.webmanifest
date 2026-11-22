@@ -1,9 +1,16 @@
 {
   "name": "One Minute Math",
   "short_name": "1 Min Math",
+  "description": "Free one-minute math practice. No ads, no sign-up.",
   "start_url": "../",
-  "icons": [{ "src": "favicon-192x192.png", "sizes": "192x192", "type": "image/png" }],
+  "scope": "../",
+  "icons": [
+    { "src": "favicon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512x512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
   "theme_color": "#141729",
   "background_color": "#141729",
-  "display": "standalone"
+  "display": "standalone",
+  "categories": ["education", "kids"]
 }

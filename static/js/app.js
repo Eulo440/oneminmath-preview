@@ -220,7 +220,12 @@
     state.startAt = performance.now();
     state.endAt = state.startAt + ROUND_MS;
     nextProblem();
-    if (state.clock === "timed") frame();
+    clearTimeout(state.endTimer);
+    if (state.clock === "timed") {
+      frame();
+      // backup in case animation frames pause (busy or hidden tab): the round still ends on time
+      state.endTimer = setTimeout(() => { if (state.running) frame(); }, ROUND_MS + 50);
+    }
   }
 
   function frame() {
@@ -388,6 +393,7 @@
   }
 
   function judge() {
+    if (state.clock === "timed" && performance.now() >= state.endAt) return endRound(); // no answers after time is up
     const p = state.problem;
     let ok, note = "";
     if (state.kind === "mix") {
@@ -682,8 +688,27 @@
     });
   }
 
+  // Optional presets from the address, e.g. ?op=multiply&level=2&numbers=frac&clock=practice&table=7
+  // (used by the guide pages). Anything unknown is ignored, so a bad link just opens the normal setup.
+  function applyPreset() {
+    let q;
+    try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
+    const op = { add: "add", subtract: "subtract", multiply: "multiply", divide: "divide", mixed: "smarty", smarty: "smarty" }[q.get("op")];
+    if (op) state.mode = op;
+    const lvl = +q.get("level");
+    if (lvl === 1 || lvl === 2 || lvl === 3) state.level = lvl;
+    const num = { whole: "whole", frac: "frac", fractions: "frac", dec: "dec", decimals: "dec" }[q.get("numbers")];
+    if (num) state.numbers = num;
+    if (q.get("clock") === "practice" || q.get("clock") === "timed") state.clock = q.get("clock");
+    const t = +q.get("table");
+    if (state.numbers === "whole" && (state.mode === "multiply" || state.mode === "divide") && t >= 2 && t <= 12 && Number.isInteger(t)) {
+      state.table = t; $("tableSelect").value = String(t);
+    }
+  }
+
   wire();
   show("home");
+  applyPreset();
   syncSetup();
   window.OMM.App = { state, endRound }; // exposed for testing
 })();

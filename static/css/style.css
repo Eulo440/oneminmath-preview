@@ -202,3 +202,47 @@ input.answer.wide { width: 6.2ch; }
   .sheet-foot { font-size: 9pt; color: #555; margin-top: 4mm; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* small phones: keep the setup cards inside the screen (no sideways scroll or zoom-out) */
+.tiles, .levels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 641px) { .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.tile, .level { min-width: 0; }
+@media (max-width: 400px) {
+  .tile { font-size: .8rem; padding: 10px 4px; }
+  .level { padding: 9px 9px; }
+  .level strong { font-size: .95rem; }
+  .level small { font-size: .75rem; }
+}
+@media (max-width: 360px) {
+  .tile { font-size: .7rem; padding: 10px 2px; }
+  .level { padding: 8px 7px; }
+  .level strong { font-size: .85rem; }
+}
+
+/* home: about block, guide pages, footer nav */
+.about { margin-top: 16px; }
+.about p { color: var(--ink-2); margin: 0 0 .8em; }
+.about h3 { margin-top: 1em; }
+.guide-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 18px; margin: 0; padding-left: 1.1em; }
+a { color: var(--accent); text-underline-offset: 3px; }
+.footnav { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 10px; }
+.footnav a { color: var(--ink-2); }
+.guide { max-width: 760px; }
+.guide h1 { font-size: clamp(1.7rem, 5vw, 2.4rem); letter-spacing: -.02em; margin-top: .3em; }
+.guide h2 { font-size: 1.25rem; margin-top: 1.6em; }
+.guide p, .guide li { color: var(--ink-2); }
+.guide li { margin: .25em 0; }
+.guide strong { color: var(--ink); }
+.crumbs { font-size: .9rem; color: var(--muted); margin: 0; }
+.crumbs a { color: var(--muted); }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 6px; }
+a.btn { text-decoration: none; }
+.quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; padding: 0; list-style: none; }
+.quick a { display: block; padding: 10px 12px; border: 2px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--ink); text-decoration: none; font-weight: 600; }
+.quick a:hover { border-color: var(--accent); }
+.quick small { display: block; color: var(--muted); font-weight: 400; font-size: .82rem; }
+.tablewrap { overflow-x: auto; max-width: 100%; }
+.facts { border-collapse: collapse; font: 600 .85rem/1 var(--num); margin: 8px 0; }
+.facts th, .facts td { border: 1px solid var(--line); padding: 5px 4px; text-align: center; min-width: 1.9em; }
+.facts th { background: var(--accent-soft); color: var(--ink); }
+.facts td { color: var(--ink-2); }
+.example { font: 700 1.15rem/1.4 var(--num); color: var(--ink); }
